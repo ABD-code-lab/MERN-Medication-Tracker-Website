@@ -7,6 +7,8 @@ const Home = () => {
   const [activeSection, setActiveSection] = useState("today");
   const [userName, setUserName] = useState("");
   const [medicines, setMedicines] = useState([]);
+  const [filteredMedicines, setFilteredMedicines] = useState([]);
+  const [filterDate, setFilterDate] = useState("");
   const [medicineForm, setMedicineForm] = useState({
     name: "",
     startDate: "",
@@ -21,12 +23,12 @@ const Home = () => {
     navigate("/login");
   };
 
-  // ✅ Handle input change
+  // ✅ Handle form input
   const handleFormChange = (e) => {
     setMedicineForm({ ...medicineForm, [e.target.name]: e.target.value });
   };
 
-  // ✅ Format time to AM/PM
+  // ✅ Format AM/PM time
   const formatTime = (time) => {
     if (!time) return "";
     const [hour, minute] = time.split(":");
@@ -46,37 +48,58 @@ const Home = () => {
 
     fetch(`http://localhost:5000/api/medicines/${user._id}`)
       .then((res) => res.json())
-      .then((data) => setMedicines(data))
+      .then((data) => {
+        setMedicines(data);
+        setFilteredMedicines(data); // initial list
+      })
       .catch((err) => console.error("Error fetching medicines:", err));
   }, []);
 
-  // ✅ Add Medicine
+  // ✅ Auto remove medicines when expired
+  useEffect(() => {
+    const now = new Date();
+    const validMeds = medicines.filter((m) => {
+      const endDateTime = new Date(`${m.endDate}T${m.medicineTime}`);
+      return endDateTime >= now;
+    });
+    setFilteredMedicines(validMeds);
+  }, [medicines]);
+
+  // ✅ Date filter
+  const handleFilterChange = (e) => {
+    const selectedDate = e.target.value;
+    setFilterDate(selectedDate);
+
+    if (!selectedDate) {
+      setFilteredMedicines(medicines);
+      return;
+    }
+
+    const filtered = medicines.filter((m) => {
+      return m.startDate <= selectedDate && m.endDate >= selectedDate;
+    });
+
+    setFilteredMedicines(filtered);
+  };
+
+  // ✅ Add new medicine
   const handleAddMedicine = async (e) => {
     e.preventDefault();
     const storedUser = localStorage.getItem("auth");
     if (!storedUser) return alert("User not logged in");
 
     const user = JSON.parse(storedUser);
-
     const response = await fetch("http://localhost:5000/api/medicines/add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: user._id,
-        ...medicineForm,
-      }),
+      body: JSON.stringify({ userId: user._id, ...medicineForm }),
     });
 
     const data = await response.json();
     if (response.ok) {
       alert("Medicine saved ✅");
       setMedicines([...medicines, data]);
-      setMedicineForm({
-        name: "",
-        startDate: "",
-        endDate: "",
-        medicineTime: "",
-      });
+      setMedicineForm({ name: "", startDate: "", endDate: "", medicineTime: "" });
     } else {
       alert(data.message || "Something went wrong");
     }
@@ -96,7 +119,7 @@ const Home = () => {
     }
   };
 
-  // ✅ Start editing
+  // ✅ Edit medicine
   const handleEditMedicine = (medicine) => {
     setEditingMedicine(medicine);
     setMedicineForm({
@@ -149,6 +172,19 @@ const Home = () => {
             >
               Today’s Medicines
             </button>
+
+            {/* ✅ New Button for All Medicines */}
+            <button
+              className={`w-full text-left px-3 py-2 rounded-lg transition ${
+                activeSection === "all"
+                  ? "bg-indigo-100 text-indigo-700 font-medium"
+                  : "hover:bg-indigo-50"
+              }`}
+              onClick={() => setActiveSection("all")}
+            >
+              All Medicines
+            </button>
+
             <button
               className={`w-full text-left px-3 py-2 rounded-lg transition ${
                 activeSection === "manage"
@@ -170,7 +206,7 @@ const Home = () => {
         </button>
       </aside>
 
-      {/* Main */}
+      {/* Main Area */}
       <main className="flex-1 p-10 overflow-y-auto relative">
         <header className="mb-10">
           <h1 className="text-3xl font-semibold text-gray-800">
@@ -181,18 +217,40 @@ const Home = () => {
           </p>
         </header>
 
-        {activeSection === "today" ? (
+        {/* ✅ Today’s Medicines Section */}
+        {activeSection === "today" && (
           <section>
             <h2 className="text-2xl font-semibold mb-4 text-indigo-700">
               Medicines for Today
             </h2>
+
+            {/* ✅ Date Filter */}
+            <div className="mb-4 flex items-center space-x-3">
+              <label className="font-medium text-gray-600">Filter by Date:</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={handleFilterChange}
+                className="border border-gray-300 rounded-lg px-3 py-2"
+              />
+              {filterDate && (
+                <button
+                  onClick={() => {
+                    setFilterDate("");
+                    setFilteredMedicines(medicines);
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
             <div className="bg-white rounded-2xl shadow p-6">
-              {medicines.length === 0 ? (
-                <p className="text-gray-500 text-center">
-                  No medicines added yet 🕒
-                </p>
+              {filteredMedicines.length === 0 ? (
+                <p className="text-gray-500 text-center">No medicines found 🕒</p>
               ) : (
-                medicines.map((med) => (
+                filteredMedicines.map((med) => (
                   <div
                     key={med._id}
                     className="flex justify-between items-center py-3 border-b last:border-none"
@@ -222,12 +280,60 @@ const Home = () => {
               )}
             </div>
           </section>
-        ) : (
+        )}
+
+        {/* ✅ All Medicines Section */}
+        {activeSection === "all" && (
+          <section>
+            <h2 className="text-2xl font-semibold mb-4 text-indigo-700">
+              All Medicines
+            </h2>
+
+            <div className="bg-white rounded-2xl shadow p-6">
+              {medicines.length === 0 ? (
+                <p className="text-gray-500 text-center">
+                  No medicines added yet 🕒
+                </p>
+              ) : (
+                medicines.map((med) => (
+                  <div
+                    key={med._id}
+                    className="flex justify-between items-center py-3 border-b last:border-none"
+                  >
+                    <div>
+                      <p className="font-medium">{med.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {med.startDate} → {med.endDate} •{" "}
+                        {formatTime(med.medicineTime)}
+                      </p>
+                    </div>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => handleEditMedicine(med)}
+                        className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMedicine(med._id)}
+                        className="bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ✅ Manage Medicines Section */}
+        {activeSection === "manage" && (
           <section>
             <h2 className="text-2xl font-semibold mb-4 text-indigo-700">
               Set a New Medicine
             </h2>
-
             <form
               onSubmit={handleAddMedicine}
               className="bg-white rounded-2xl shadow p-6 max-w-md space-y-4"
@@ -298,7 +404,7 @@ const Home = () => {
           </section>
         )}
 
-        {/* ✅ Animated Edit Form (slides in) */}
+        {/* ✅ Edit Slide-in Form */}
         <AnimatePresence>
           {editingMedicine && (
             <motion.div
@@ -311,7 +417,6 @@ const Home = () => {
               <h2 className="text-2xl font-semibold mb-6 text-indigo-700">
                 Edit Medicine
               </h2>
-
               <form onSubmit={handleUpdateMedicine} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
