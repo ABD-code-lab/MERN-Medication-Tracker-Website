@@ -1,38 +1,39 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import mongoose from "mongoose"; // <--- add this if you're using MongoDB
-import authRoutes from "./routes/authRoutes.js"; // <-- adjust path if needed
+import mongoose from "mongoose";
+import authRoutes from "./routes/authRoutes.js";
+import medicineRoutes from "./routes/medicineRoutes.js";
 
 dotenv.config();
 
-const app = express();
+const app = express(); // ✅ Moved above route mounting
 
-// middleware
+// ✅ middleware
 app.use(cors());
-app.use(express.json()); // <--- needed to read JSON body
+app.use(express.json());
 
-// connect MongoDB (optional, if not already in another file)
+// ✅ MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI || "mongodb://localhost:27017/Urban-community-digital")
   .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => console.error("❌ MongoDB error:", err));
 
-// routes
-app.use("/api/auth", authRoutes); // <--- this mounts your signup/login/register/profile routes
+// ✅ Correct route mounting order
+app.use("/api/auth", authRoutes);
+app.use("/api/medicines", medicineRoutes);
 
-// test route
+// ✅ Test Route
 app.get("/", (req, res) => {
-  res.send("medication tracker API is running...");
+  res.send("Medication Tracker API is running ✅");
 });
 
-// error handler
+// ✅ Error Handler
 app.use((err, req, res, next) => {
   console.error("❌ Server Error:", err.message);
   res.status(500).json({ error: "Internal Server Error" });
 });
 
+// ✅ Server Start
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
