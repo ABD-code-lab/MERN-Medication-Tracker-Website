@@ -25,8 +25,9 @@ const Login = () => {
       }
 
       // ✅ Save correct user object with _id
+      localStorage.setItem("token", data.token);
       localStorage.setItem("auth", JSON.stringify(data.user));
-
+      console.log("Saved token:", data.token);
       navigate("/home");
     } catch (err) {
       alert("Server error 😢");

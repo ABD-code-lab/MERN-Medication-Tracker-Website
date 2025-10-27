@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const User = require("../models/users");
-
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 
 // ✅ Register (Signup)
@@ -55,15 +55,18 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    res.json({
-      message: "Login successful ✅",
-      user: {
-        _id: existingUser._id,
-        name: existingUser.name,
-        email: existingUser.email,
-      },
-    });
-  } catch (err) {
+
+const token = jwt.sign({ userId: existingUser._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+res.json({
+  message: "Login successful ✅",
+  user: {
+    _id: existingUser._id,
+    name: existingUser.name,
+    email: existingUser.email,
+  },
+  token: token
+});  } catch (err) {
     console.log("Login error:", err);
     res.status(500).json({ message: "Server error" });
   }

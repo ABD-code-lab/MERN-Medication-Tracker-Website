@@ -37,6 +37,52 @@ const Home = () => {
     const formattedHour = h % 12 || 12;
     return `${formattedHour}:${minute} ${ampm}`;
   };
+  function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4 - (base64String.length % 4))%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=window.atob(base64);
+  const output=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;++i) output[i]=raw.charCodeAt(i);
+  return output;
+}
+
+const subscribeForPush = async () => {
+  try {
+    if (!('serviceWorker' in navigator)) return alert('Service Worker not supported');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return alert('Please allow notifications');
+
+    // register SW
+    const reg = await navigator.serviceWorker.register('/sw.js');
+
+    // get VAPID public key from backend
+    const vapidRes = await fetch('http://localhost:5000/api/subscribe/vapid');
+    const { publicKey } = await vapidRes.json();
+
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+
+    // send subscription to backend (it expects Authorization header)
+    const token = localStorage.getItem('token'); // ensure token exists
+    const save = await fetch('http://localhost:5000/api/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(subscription)
+    });
+
+    const result = await save.json();
+    if (save.ok) alert('Subscribed ✅');
+    else alert(result.message || 'Subscribe failed');
+  } catch (err) {
+    console.error('subscribeForPush error', err);
+    alert('Subscription failed — check console');
+  }
+};
 
   // ✅ Fetch user + medicines
   useEffect(() => {
@@ -154,18 +200,18 @@ const Home = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-800">
+    <div className="flex h-screen bg-linear-to-br from-blue-50 to-indigo-100 text-gray-800">
       {/* Sidebar */}
       <aside className="w-64 bg-white shadow-lg p-6 flex flex-col justify-between rounded-r-3xl">
         <div>
-          <h2 className="text-2xl font-semibold mb-8 text-indigo-600">
+          <h2 className="text-2xl font-semibold mb-8 text-yellow-600">
             Medication Tracker
           </h2>
           <nav className="space-y-4">
             <button
               className={`w-full text-left px-3 py-2 rounded-lg transition ${
                 activeSection === "today"
-                  ? "bg-indigo-100 text-indigo-700 font-medium"
+                  ? "bg-indigo-100 text-yellow-600 font-medium"
                   : "hover:bg-indigo-50"
               }`}
               onClick={() => setActiveSection("today")}
@@ -177,7 +223,7 @@ const Home = () => {
             <button
               className={`w-full text-left px-3 py-2 rounded-lg transition ${
                 activeSection === "all"
-                  ? "bg-indigo-100 text-indigo-700 font-medium"
+                  ? "bg-indigo-100 text-yellow-500 font-medium"
                   : "hover:bg-indigo-50"
               }`}
               onClick={() => setActiveSection("all")}
@@ -188,7 +234,7 @@ const Home = () => {
             <button
               className={`w-full text-left px-3 py-2 rounded-lg transition ${
                 activeSection === "manage"
-                  ? "bg-indigo-100 text-indigo-700 font-medium"
+                  ? "bg-indigo-100 text-yellow-300 font-medium"
                   : "hover:bg-indigo-50"
               }`}
               onClick={() => setActiveSection("manage")}
@@ -210,23 +256,30 @@ const Home = () => {
       <main className="flex-1 p-10 overflow-y-auto relative">
         <header className="mb-10">
           <h1 className="text-3xl font-semibold text-gray-800">
-            Welcome, <span className="text-indigo-600">{userName}</span> 👋
+            Welcome, <span className="text-yellow-600">{userName}</span> 👋
           </h1>
           <p className="text-gray-500 mt-1">
             Track and manage your medicines with ease.
           </p>
+          <button
+  onClick={subscribeForPush}
+  className="ml-4 bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+>
+  Enable Notifications
+</button>
+
         </header>
 
         {/* ✅ Today’s Medicines Section */}
         {activeSection === "today" && (
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-indigo-700">
+            <h2 className="text-2xl font-semibold mb-4 text-yellow-500">
               Medicines for Today
             </h2>
 
             {/* ✅ Date Filter */}
             <div className="mb-4 flex items-center space-x-3">
-              <label className="font-medium text-gray-600">Filter by Date:</label>
+              <label className="font-medium text-gray-400">Filter by Date:</label>
               <input
                 type="date"
                 value={filterDate}
@@ -264,7 +317,7 @@ const Home = () => {
                     <div className="flex space-x-3">
                       <button
                         onClick={() => handleEditMedicine(med)}
-                        className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 font-medium"
+                        className="bg-blue-100 text-yello-500 px-3 py-1 rounded-lg hover:bg-blue-200 font-medium"
                       >
                         Edit
                       </button>
@@ -285,7 +338,7 @@ const Home = () => {
         {/* ✅ All Medicines Section */}
         {activeSection === "all" && (
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-indigo-700">
+            <h2 className="text-2xl font-semibold mb-4 text-yellow-500">
               All Medicines
             </h2>
 
@@ -310,7 +363,7 @@ const Home = () => {
                     <div className="flex space-x-3">
                       <button
                         onClick={() => handleEditMedicine(med)}
-                        className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 font-medium"
+                        className="bg-blue-100 text-yellow-500 px-3 py-1 rounded-lg hover:bg-blue-200 font-medium"
                       >
                         Edit
                       </button>
@@ -331,7 +384,7 @@ const Home = () => {
         {/* ✅ Manage Medicines Section */}
         {activeSection === "manage" && (
           <section>
-            <h2 className="text-2xl font-semibold mb-4 text-indigo-700">
+            <h2 className="text-2xl font-semibold mb-4 text-yellow-500">
               Set a New Medicine
             </h2>
             <form
@@ -396,7 +449,7 @@ const Home = () => {
 
               <button
                 type="submit"
-                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium transition"
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition"
               >
                 Save Medicine
               </button>
@@ -414,7 +467,7 @@ const Home = () => {
               transition={{ type: "spring", stiffness: 120, damping: 20 }}
               className="fixed top-0 right-0 w-full sm:w-1/3 h-full bg-white shadow-2xl p-8 z-50 overflow-y-auto"
             >
-              <h2 className="text-2xl font-semibold mb-6 text-indigo-700">
+              <h2 className="text-2xl font-semibold mb-6 text-yellow-500">
                 Edit Medicine
               </h2>
               <form onSubmit={handleUpdateMedicine} className="space-y-4">
@@ -476,7 +529,7 @@ const Home = () => {
 
                 <button
                   type="submit"
-                  className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium transition"
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition"
                 >
                   Update Medicine
                 </button>
